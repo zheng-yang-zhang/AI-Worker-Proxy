@@ -9,41 +9,43 @@ export class ProxyError extends Error {
   }
 }
 
-export function createErrorResponse(error: unknown): Response {
+export interface ErrorResponsePayload {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export function createErrorResponse(error: unknown): ErrorResponsePayload {
   if (error instanceof ProxyError) {
-    return new Response(
-      JSON.stringify({
+    return {
+      status: error.statusCode,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         error: {
           message: error.message,
           type: 'proxy_error',
           code: error.code,
         },
       }),
-      {
-        status: error.statusCode,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    };
   }
 
   // Generic error
   const message = error instanceof Error ? error.message : 'Unknown error occurred';
-  return new Response(
-    JSON.stringify({
+  return {
+    status: 500,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
       error: {
         message,
         type: 'internal_error',
       },
     }),
-    {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }
-  );
+  };
 }
 
 export function isRateLimitError(error: any): boolean {
