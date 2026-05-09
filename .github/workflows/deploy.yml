@@ -41,39 +41,55 @@ jobs:
           ROUTES_CONFIG: ${{ vars.ROUTES_CONFIG }}
         run: |
           python3 - <<'PY'
-          import os, json, pathlib, sys
+          import os, json, pathlib, sys, re
 
           routes = os.environ.get("ROUTES_CONFIG", "").strip()
-          if not routes:
-              sys.exit("GitHub Variable ROUTES_CONFIG is empty. Please set it in Settings → Secrets and variables → Actions → Variables.")
 
-          try:
-              json.loads(routes)
-          except Exception as e:
-              sys.exit(f"ROUTES_CONFIG is not valid JSON: {e}")
+          if routes:
+              try:
+                  json.loads(routes)
+              except Exception as e:
+                  sys.exit(f"ROUTES_CONFIG is not valid JSON: {e}")
 
-          routes_as_toml_string = json.dumps(routes)
+              routes_as_toml_string = json.dumps(routes)
 
-          pathlib.Path("wrangler.toml").write_text(f'''name = "ai-worker-proxy"
-          main = "src/index.ts"
-          compatibility_date = "2024-01-01"
+              pathlib.Path("wrangler.toml").write_text(f'''name = "ai-worker-proxy"
+              main = "src/index.ts"
+              compatibility_date = "2024-01-01"
 
-          [ai]
-          binding = "AI"
+              [ai]
+              binding = "AI"
 
-          [observability]
-          [observability.logs]
-          enabled = true
-          head_sampling_rate = 1
-          invocation_logs = true
-          persist = false
+              [observability]
+              [observability.logs]
+              enabled = true
+              head_sampling_rate = 1
+              invocation_logs = true
+              persist = false
 
-          [vars]
-          ROUTES_CONFIG = {routes_as_toml_string}
-          ''')
+              [vars]
+              ROUTES_CONFIG = {routes_as_toml_string}
+              ''')
+          else:
+              wrangler_toml = pathlib.Path("wrangler.toml")
+              if not wrangler_toml.exists():
+                  sys.exit("wrangler.toml not found and GitHub Variable ROUTES_CONFIG is empty.")
+
+              content = wrangler_toml.read_text()
+              match = re.search(r"ROUTES_CONFIG\s*=\s*'''(.*?)'''", content, re.S)
+              if not match:
+                  sys.exit("GitHub Variable ROUTES_CONFIG is empty and wrangler.toml does not contain a ROUTES_CONFIG example.")
+
+              fallback_routes = match.group(1).strip()
+              try:
+                  json.loads(fallback_routes)
+              except Exception as e:
+                  sys.exit(f"Fallback ROUTES_CONFIG in wrangler.toml is not valid JSON: {e}")
+
+              print("GitHub Variable ROUTES_CONFIG is empty. Falling back to repository wrangler.toml config.")
           PY
 
-          echo "Generated wrangler.toml:"
+          echo "Using wrangler.toml:"
           cat wrangler.toml
 
           pnpm exec wrangler deploy --dry-run
