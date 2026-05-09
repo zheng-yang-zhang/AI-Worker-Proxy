@@ -3,10 +3,6 @@ account_id = "8767da8afc4ffaf2e5a3093de30cb9e9"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
-# Cloudflare AI binding (optional)
-[ai]
-binding = "AI"
-
 # Cloudflare dashboard logs (optional)
 [observability]
 [observability.logs]
@@ -32,7 +28,7 @@ ROUTES_CONFIG = '''
       "provider": "freemodel",
       "baseUrl": "https://api.freemodel.dev",
       "model": "gpt-5.5",
-      "apiKeys": ["FREEMODEL_KEY_1", "FREEMODEL_KEY_2"]
+      "apiKeys": ["FREEMODEL_KEY_1"]
     }
   ]
 }
@@ -41,4 +37,3 @@ ROUTES_CONFIG = '''
 # Secrets to set in Cloudflare Dashboard:
 # - PROXY_AUTH_TOKEN
 # - FREEMODEL_KEY_1
-# - FREEMODEL_KEY_2
