@@ -111,7 +111,9 @@ export class Router {
 
     const providers = this.getProvidersForModel(model);
 
-    console.log(`[Router] Responses model "${model}" has ${providers.length} provider(s) configured`);
+    console.log(
+      `[Router] Responses model "${model}" has ${providers.length} provider(s) configured`
+    );
 
     let lastError: any = null;
 
@@ -126,7 +128,9 @@ export class Router {
         const response = await manager.executeResponsesWithRotation(request);
 
         if (response.success) {
-          console.log(`[Router] Responses success with provider: ${config.provider}/${config.model}`);
+          console.log(
+            `[Router] Responses success with provider: ${config.provider}/${config.model}`
+          );
           return response;
         }
 
