@@ -52,6 +52,31 @@ export interface OpenAIChatRequest {
   n?: number;
 }
 
+export interface ResponsesTool {
+  type: 'function';
+  name: string;
+  description?: string;
+  parameters?: Record<string, unknown>;
+}
+
+export interface OpenAIResponsesRequest {
+  model: string;
+  input?: unknown;
+  instructions?: string;
+  stream?: boolean;
+  tools?: ResponsesTool[];
+  tool_choice?: unknown;
+  temperature?: number;
+  top_p?: number;
+  max_output_tokens?: number;
+  max_tool_calls?: number;
+  parallel_tool_calls?: boolean;
+  previous_response_id?: string;
+  metadata?: Record<string, unknown>;
+  user?: string;
+  [key: string]: unknown;
+}
+
 export interface OpenAIChatResponse {
   id: string;
   object: 'chat.completion';
@@ -87,7 +112,13 @@ export interface OpenAIStreamChunk {
 
 // Provider configuration
 export interface ProviderConfig {
-  provider: 'anthropic' | 'google' | 'openai' | 'openai-compatible' | 'cloudflare-ai';
+  provider:
+    | 'anthropic'
+    | 'google'
+    | 'openai'
+    | 'openai-compatible'
+    | 'cloudflare-ai'
+    | 'freemodel';
   model: string;
   apiKeys: string[];
   baseUrl?: string;
@@ -110,7 +141,7 @@ export interface Env {
 // Provider response
 export interface ProviderResponse {
   success: boolean;
-  response?: OpenAIChatResponse;
+  response?: any;
   stream?: ReadableStream<Uint8Array>;
   error?: string;
   statusCode?: number;

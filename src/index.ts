@@ -1,4 +1,4 @@
-import { Env, OpenAIChatRequest } from './types';
+import { Env, OpenAIChatRequest, OpenAIResponsesRequest } from './types';
 import { Router } from './router';
 import { ProxyError, createErrorResponse } from './utils/error-handler';
 
@@ -50,6 +50,11 @@ export default {
         return handleChatCompletion(request, env);
       }
 
+      // Responses API — POST only
+      if (request.method === 'POST' && (path === '/v1/responses' || path === '/responses')) {
+        return handleResponses(request, env);
+      }
+
       throw new ProxyError('Not found', 404);
     } catch (error) {
       console.error('[Worker] Error:', error);
@@ -78,6 +83,39 @@ async function handleChatCompletion(request: Request, env: Env): Promise<Respons
 
   const router = new Router(env);
   const response = await router.executeWithFallback(chatRequest);
+
+  if (!response.success) {
+    throw new ProxyError(response.error || 'All providers failed', response.statusCode || 500);
+  }
+
+  if (response.stream) {
+    return new Response(response.stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        ...CORS_HEADERS,
+      },
+    });
+  }
+
+  return json(response.response);
+}
+
+async function handleResponses(request: Request, env: Env): Promise<Response> {
+  const body = await request.json();
+  const responsesRequest = body as OpenAIResponsesRequest;
+
+  if (!responsesRequest.model) {
+    throw new ProxyError('Invalid request: model is required', 400);
+  }
+
+  console.log(
+    `[Worker] responses model=${responsesRequest.model} stream=${responsesRequest.stream || false}`
+  );
+
+  const router = new Router(env);
+  const response = await router.executeResponsesWithFallback(responsesRequest);
 
   if (!response.success) {
     throw new ProxyError(response.error || 'All providers failed', response.statusCode || 500);

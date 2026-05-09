@@ -3,6 +3,7 @@ import { AnthropicProvider } from './anthropic';
 import { GoogleProvider } from './google';
 import { OpenAIProvider } from './openai';
 import { CloudflareAIProvider } from './cloudflare-ai';
+import { FreemodelProvider } from './freemodel';
 import { ProviderConfig, Env } from '../types';
 
 export function createProvider(config: ProviderConfig, env: Env): AIProvider {
@@ -29,6 +30,9 @@ export function createProvider(config: ProviderConfig, env: Env): AIProvider {
         );
       }
       return new CloudflareAIProvider(config.model, env.AI);
+
+    case 'freemodel':
+      return new FreemodelProvider(config.model, config.baseUrl);
 
     default:
       throw new Error(`Unknown provider: ${config.provider}`);

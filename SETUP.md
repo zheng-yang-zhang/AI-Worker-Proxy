@@ -1,140 +1,146 @@
 # Quick Setup Guide
 
-## Prerequisites
+这个版本的目标是：
 
-- Node.js 20+ installed
-- Cloudflare account
-- API keys for the AI providers you want to use
+- 上游用 `freemodel.dev`
+- 下游对外只暴露你自己的 Worker / 自定义域名
+- 同时兼容 `/v1/chat/completions` 和 `/v1/responses`
 
-## Step-by-Step Setup
-
-### 1. Install Dependencies
+## 1. 安装依赖
 
 ```bash
 npm install
 ```
 
-### 2. Configure Your Model Names
+## 2. 配置模型别名
 
-Edit `wrangler.toml` and customize the `ROUTES_CONFIG` section:
+编辑 `wrangler.toml` 或 GitHub Actions 里的 `ROUTES_CONFIG`。
+
+最小示例：
 
 ```toml
 ROUTES_CONFIG = '''
 {
-  "your-model-name": [
+  "gpt-5.5": [
     {
-      "provider": "anthropic",
-      "model": "claude-opus-4-20250514",
-      "apiKeys": ["ANTHROPIC_KEY_1"]
+      "provider": "freemodel",
+      "baseUrl": "https://api.freemodel.dev",
+      "model": "gpt-5.5",
+      "apiKeys": ["FREEMODEL_KEY_1"]
     }
   ]
 }
 '''
 ```
 
-**Note**: Use model names (e.g., `"fast"`, `"deep-think"`) in your API requests, not URL paths.
+注意：
 
-### 3. Set Up API Keys
+- 这里对外暴露给客户端的模型名就是 `gpt-5.5`
+- 它实际转发给上游的模型名也是 `gpt-5.5`
 
-For local development, create a `.dev.vars` file:
+## 3. 设置密钥
+
+本地开发：
 
 ```bash
 cp .dev.vars.example .dev.vars
 ```
 
-Edit `.dev.vars` and add your API keys:
+把 `.dev.vars` 改成类似这样：
 
-```
+```env
 PROXY_AUTH_TOKEN=my-secret-token
-ANTHROPIC_KEY_1=sk-ant-xxxxx
-GOOGLE_KEY_1=AIzaxxxxx
-OPENAI_KEY_1=sk-xxxxx
+FREEMODEL_KEY_1=your-freemodel-key
+ROUTES_CONFIG={"gpt-5.5":[{"provider":"freemodel","baseUrl":"https://api.freemodel.dev","model":"gpt-5.5","apiKeys":["FREEMODEL_KEY_1"]}]}
 ```
 
-For production, use Wrangler secrets:
+生产环境：
 
 ```bash
 wrangler secret put PROXY_AUTH_TOKEN
-wrangler secret put ANTHROPIC_KEY_1
-wrangler secret put GOOGLE_KEY_1
-# ... and so on
+wrangler secret put FREEMODEL_KEY_1
 ```
 
-### 4. Test Locally
+## 4. 本地测试
 
 ```bash
 npm run dev
 ```
 
-Test the endpoint:
+### 测试 chat/completions
 
 ```bash
 curl -X POST http://localhost:8787/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer my-secret-token" \
   -d '{
-    "model": "your-model-name",
+    "model": "gpt-5.5",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 ```
 
-### 5. Deploy to Cloudflare
+### 测试 responses
+
+```bash
+curl -X POST http://localhost:8787/v1/responses \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer my-secret-token" \
+  -d '{
+    "model": "gpt-5.5",
+    "input": "Write a hello world in Python"
+  }'
+```
+
+## 5. 部署
 
 ```bash
 npm run deploy
 ```
 
-### 6. Set Up GitHub Actions (Optional)
+## 6. 绑定自定义域名
 
-For automatic deployment on push to main:
+Worker 部署完成后，在 Cloudflare 给它绑定自己的域名，例如：
 
-1. Go to your Cloudflare dashboard
-2. Get your API token: https://dash.cloudflare.com/profile/api-tokens
-3. Get your Account ID from the dashboard
-4. Add these as GitHub secrets:
-   - `CLOUDFLARE_API_TOKEN`
-   - `CLOUDFLARE_ACCOUNT_ID`
+- `api.yourdomain.com`
 
-Now every push to `main` will automatically deploy!
+之后下游客户端只需要记住：
 
-## Common Issues
+- Base URL: `https://api.yourdomain.com/v1`
+- API Key: `PROXY_AUTH_TOKEN`
 
-### "Unauthorized" error
+## 7. 给 Codex CLI 用
 
-- Check that your `Authorization` header matches `PROXY_AUTH_TOKEN`
-- Format: `Authorization: Bearer your-token-here`
+如果你想让 Codex CLI 走你的域名，配置可以写成：
 
-### "All providers failed"
+```toml
+model_provider = "mygateway"
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
+disable_response_storage = true
+preferred_auth_method = "apikey"
 
-- Verify API keys are set correctly
-- Check the provider and model names in your config
-- Look at the logs in Cloudflare dashboard
-
-### Cloudflare AI not working
-
-- Make sure you have the `[ai]` binding in `wrangler.toml`
-- Cloudflare AI is only available on certain plans
-
-### TypeScript errors
-
-```bash
-npm run type-check
+[model_providers.mygateway]
+name = "mygateway"
+base_url = "https://api.yourdomain.com"
+wire_api = "responses"
 ```
 
-### Linting errors
+## 常见问题
 
-```bash
-npm run lint
-npm run format
-```
+### 401 Unauthorized
 
-## Next Steps
+- 检查 `Authorization` 头是否等于 `PROXY_AUTH_TOKEN`
 
-- Read the full [README.md](README.md)
-- Check out [examples/](examples/) for client code
-- Customize error handling in `src/utils/error-handler.ts`
-- Add your own providers in `src/providers/`
+### All providers failed
 
-## Support
+- 检查 `FREEMODEL_KEY_1` 是否正确
+- 检查 `ROUTES_CONFIG` 中的上游模型名是否是 `freemodel` 实际支持的名字
 
-Open an issue on GitHub if you need help!
+### 我只想暴露一个 API
+
+直接把所有客户端都指向你的自定义域名即可：
+
+- 老式 OpenAI 客户端走 `/v1/chat/completions`
+- Codex 这类客户端走 `/v1/responses`
+
+两者都还是同一个域名、同一套鉴权、同一套路由配置。

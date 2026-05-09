@@ -26,34 +26,12 @@ persist = false
 # Model routing configuration (example - will be replaced by GitHub Actions)
 ROUTES_CONFIG = '''
 {
-  "deep-think": [
+  "gpt-5.5": [
     {
-      "provider": "anthropic",
-      "model": "claude-opus-4-20250514",
-      "apiKeys": ["ANTHROPIC_KEY_1", "ANTHROPIC_KEY_2"]
-    }
-  ],
-  "fast": [
-    {
-      "provider": "google",
-      "model": "gemini-2.0-flash-exp",
-      "apiKeys": ["GOOGLE_KEY_1"]
-    }
-  ],
-  "nvidia": [
-    {
-      "provider": "openai-compatible",
-      "baseUrl": "https://integrate.api.nvidia.com/v1",
-      "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-      "apiKeys": ["NVIDIA_KEY_1"]
-    }
-  ],
-  "search": [
-    {
-      "provider": "google",
-      "model": "gemini-3-flash-preview",
-      "apiKeys": ["GOOGLE_KEY_1"],
-      "grounding": true
+      "provider": "freemodel",
+      "baseUrl": "https://api.freemodel.dev",
+      "model": "gpt-5.5",
+      "apiKeys": ["FREEMODEL_KEY_1", "FREEMODEL_KEY_2"]
     }
   ]
 }
@@ -61,7 +39,5 @@ ROUTES_CONFIG = '''
 
 # Secrets to set in Cloudflare Dashboard:
 # - PROXY_AUTH_TOKEN
-# - ANTHROPIC_KEY_1, ANTHROPIC_KEY_2
-# - GOOGLE_KEY_1
-# - NVIDIA_KEY_1
-# - OPENAI_KEY_1, GROQ_KEY_1, etc.
+# - FREEMODEL_KEY_1
+# - FREEMODEL_KEY_2

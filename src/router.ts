@@ -1,4 +1,11 @@
-import { RouteConfig, ProviderConfig, Env, OpenAIChatRequest, ProviderResponse } from './types';
+import {
+  RouteConfig,
+  ProviderConfig,
+  Env,
+  OpenAIChatRequest,
+  OpenAIResponsesRequest,
+  ProviderResponse,
+} from './types';
 import { TokenManager } from './token-manager';
 import { ProxyError } from './utils/error-handler';
 
@@ -89,6 +96,53 @@ export class Router {
     }
 
     // All providers failed
+    return {
+      success: false,
+      error: `All providers failed. Last error: ${lastError?.message || lastError || 'Unknown error'}`,
+      statusCode: 500,
+    };
+  }
+
+  async executeResponsesWithFallback(request: OpenAIResponsesRequest): Promise<ProviderResponse> {
+    const model = request.model;
+    if (!model) {
+      throw new ProxyError('Model name is required', 400);
+    }
+
+    const providers = this.getProvidersForModel(model);
+
+    console.log(`[Router] Responses model "${model}" has ${providers.length} provider(s) configured`);
+
+    let lastError: any = null;
+
+    for (let i = 0; i < providers.length; i++) {
+      const config = providers[i];
+      console.log(
+        `[Router] Trying responses provider ${i + 1}/${providers.length}: ${config.provider}/${config.model}`
+      );
+
+      try {
+        const manager = new TokenManager(config, this.env);
+        const response = await manager.executeResponsesWithRotation(request);
+
+        if (response.success) {
+          console.log(`[Router] Responses success with provider: ${config.provider}/${config.model}`);
+          return response;
+        }
+
+        lastError = response.error;
+        console.log(
+          `[Router] Responses provider ${config.provider}/${config.model} failed: ${response.error}`
+        );
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `[Router] Responses provider ${config.provider}/${config.model} exception:`,
+          error
+        );
+      }
+    }
+
     return {
       success: false,
       error: `All providers failed. Last error: ${lastError?.message || lastError || 'Unknown error'}`,

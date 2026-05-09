@@ -1,6 +1,7 @@
-import { ProviderConfig, Env, OpenAIChatRequest, ProviderResponse } from './types';
+import { ProviderConfig, Env, OpenAIChatRequest, OpenAIResponsesRequest, ProviderResponse } from './types';
 import { createProvider } from './providers';
 import { isRetryableError } from './utils/error-handler';
+import { responsesToChatRequest } from './utils/request-mapper';
 
 export class TokenManager {
   constructor(
@@ -59,6 +60,61 @@ export class TokenManager {
     }
 
     // All keys failed
+    return {
+      success: false,
+      error: lastError?.message || lastError || 'All API keys failed',
+      statusCode: lastError?.statusCode || 500,
+    };
+  }
+
+  async executeResponsesWithRotation(request: OpenAIResponsesRequest): Promise<ProviderResponse> {
+    const provider = createProvider(this.config, this.env);
+    const apiKeys = this.getApiKeys();
+
+    if (!provider.responses) {
+      return this.executeWithRotation(responsesToChatRequest(request));
+    }
+
+    if (apiKeys.length === 0) {
+      return await provider.responses(request, '');
+    }
+
+    let lastError: any = null;
+
+    for (const apiKey of apiKeys) {
+      try {
+        console.log(
+          `[TokenManager] Trying responses ${this.config.provider}/${this.config.model} with key ending in ...${apiKey.slice(-4)}`
+        );
+
+        const response = await provider.responses(request, apiKey);
+
+        if (response.success) {
+          console.log(`[TokenManager] Responses success with key ending in ...${apiKey.slice(-4)}`);
+          return response;
+        }
+
+        lastError = response.error;
+        console.log(
+          `[TokenManager] Responses failed with key ending in ...${apiKey.slice(-4)}: ${response.error}`
+        );
+
+        if (response.statusCode && !this.isRetryableStatusCode(response.statusCode)) {
+          break;
+        }
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `[TokenManager] Responses exception with key ending in ...${apiKey.slice(-4)}:`,
+          error
+        );
+
+        if (!isRetryableError(error)) {
+          break;
+        }
+      }
+    }
+
     return {
       success: false,
       error: lastError?.message || lastError || 'All API keys failed',
