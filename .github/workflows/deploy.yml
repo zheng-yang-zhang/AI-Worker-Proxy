@@ -24,14 +24,14 @@ jobs:
         with:
           version: latest
 
-      - name: Setup Node.js
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 22
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Run ESLint
         run: pnpm run lint
@@ -65,14 +65,14 @@ jobs:
         with:
           version: latest
 
-      - name: Setup Node.js
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 22
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Replace ROUTES_CONFIG in wrangler.toml
         env:
@@ -80,10 +80,8 @@ jobs:
         run: |
           # Remove existing [vars] section and everything after it
           sed -i '/^\[vars\]/,$d' wrangler.toml
-
           # Add new [vars] section with GitHub Variable
           cat >> wrangler.toml << EOF
-
           [vars]
           ROUTES_CONFIG = '''${ROUTES_CONFIG}'''
           EOF
