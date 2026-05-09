@@ -47,12 +47,12 @@ export default {
         request.method === 'POST' &&
         (path === '/' || path === '/v1/chat/completions' || path === '/chat/completions')
       ) {
-        return handleChatCompletion(request, env);
+        return await handleChatCompletion(request, env);
       }
 
       // Responses API — POST only
       if (request.method === 'POST' && (path === '/v1/responses' || path === '/responses')) {
-        return handleResponses(request, env);
+        return await handleResponses(request, env);
       }
 
       throw new ProxyError('Not found', 404);

@@ -7,7 +7,7 @@ import {
   ProviderResponse,
 } from './types';
 import { TokenManager } from './token-manager';
-import { ProxyError } from './utils/error-handler';
+import { ProxyError, normalizeFailure } from './utils/error-handler';
 
 export class Router {
   private routes: RouteConfig;
@@ -67,7 +67,7 @@ export class Router {
 
     console.log(`[Router] Model "${model}" has ${providers.length} provider(s) configured`);
 
-    let lastError: any = null;
+    let lastError: { message: string; statusCode: number } | null = null;
 
     // Try each provider in order
     for (let i = 0; i < providers.length; i++) {
@@ -85,21 +85,31 @@ export class Router {
           return response;
         }
 
-        lastError = response.error;
+        const failure = normalizeFailure(
+          {
+            message: response.error || 'Provider request failed',
+            statusCode: response.statusCode,
+          },
+          'Provider request failed',
+          response.statusCode || 500
+        );
+        lastError = failure;
         console.log(
-          `[Router] Provider ${config.provider}/${config.model} failed: ${response.error}`
+          `[Router] Provider ${config.provider}/${config.model} failed: ${failure.message}`
         );
       } catch (error) {
-        lastError = error;
-        console.error(`[Router] Provider ${config.provider}/${config.model} exception:`, error);
+        const failure = normalizeFailure(error, 'Provider request failed');
+        lastError = failure;
+        console.error(`[Router] Provider ${config.provider}/${config.model} exception:`, failure);
       }
     }
 
+    const failure = normalizeFailure(lastError, 'Unknown error');
     // All providers failed
     return {
       success: false,
-      error: `All providers failed. Last error: ${lastError?.message || lastError || 'Unknown error'}`,
-      statusCode: 500,
+      error: `All providers failed. Last error: ${failure.message}`,
+      statusCode: failure.statusCode,
     };
   }
 
@@ -115,7 +125,7 @@ export class Router {
       `[Router] Responses model "${model}" has ${providers.length} provider(s) configured`
     );
 
-    let lastError: any = null;
+    let lastError: { message: string; statusCode: number } | null = null;
 
     for (let i = 0; i < providers.length; i++) {
       const config = providers[i];
@@ -134,23 +144,33 @@ export class Router {
           return response;
         }
 
-        lastError = response.error;
+        const failure = normalizeFailure(
+          {
+            message: response.error || 'Provider request failed',
+            statusCode: response.statusCode,
+          },
+          'Provider request failed',
+          response.statusCode || 500
+        );
+        lastError = failure;
         console.log(
-          `[Router] Responses provider ${config.provider}/${config.model} failed: ${response.error}`
+          `[Router] Responses provider ${config.provider}/${config.model} failed: ${failure.message}`
         );
       } catch (error) {
-        lastError = error;
+        const failure = normalizeFailure(error, 'Provider request failed');
+        lastError = failure;
         console.error(
           `[Router] Responses provider ${config.provider}/${config.model} exception:`,
-          error
+          failure
         );
       }
     }
 
+    const failure = normalizeFailure(lastError, 'Unknown error');
     return {
       success: false,
-      error: `All providers failed. Last error: ${lastError?.message || lastError || 'Unknown error'}`,
-      statusCode: 500,
+      error: `All providers failed. Last error: ${failure.message}`,
+      statusCode: failure.statusCode,
     };
   }
 

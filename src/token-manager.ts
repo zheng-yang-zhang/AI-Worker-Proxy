@@ -6,7 +6,7 @@ import {
   ProviderResponse,
 } from './types';
 import { createProvider } from './providers';
-import { isRetryableError } from './utils/error-handler';
+import { normalizeFailure, shouldRotateApiKey } from './utils/error-handler';
 import { responsesToChatRequest } from './utils/request-mapper';
 
 export class TokenManager {
@@ -28,7 +28,7 @@ export class TokenManager {
       return await provider.chat(request, '');
     }
 
-    let lastError: any = null;
+    let lastError: { message: string; statusCode: number } | null = null;
 
     // Try each API key in order
     for (const apiKey of apiKeys) {
@@ -44,32 +44,41 @@ export class TokenManager {
           return response;
         }
 
-        // If response failed but it's retryable, try next key
-        lastError = response.error;
+        const failure = normalizeFailure(
+          {
+            message: response.error || 'Provider request failed',
+            statusCode: response.statusCode,
+          },
+          'Provider request failed',
+          response.statusCode || 500
+        );
+        lastError = failure;
         console.log(
-          `[TokenManager] Failed with key ending in ...${apiKey.slice(-4)}: ${response.error}`
+          `[TokenManager] Failed with key ending in ...${apiKey.slice(-4)}: ${failure.message}`
         );
 
-        // If it's not a retryable error, don't try other keys for this provider
-        if (response.statusCode && !this.isRetryableStatusCode(response.statusCode)) {
+        if (!shouldRotateApiKey(failure)) {
           break;
         }
       } catch (error) {
-        lastError = error;
-        console.error(`[TokenManager] Exception with key ending in ...${apiKey.slice(-4)}:`, error);
+        const failure = normalizeFailure(error, 'Provider request failed');
+        lastError = failure;
+        console.error(
+          `[TokenManager] Exception with key ending in ...${apiKey.slice(-4)}:`,
+          failure
+        );
 
-        // If it's a retryable error, continue to next key
-        if (!isRetryableError(error)) {
+        if (!shouldRotateApiKey(failure)) {
           break;
         }
       }
     }
 
-    // All keys failed
+    const failure = normalizeFailure(lastError, 'All API keys failed');
     return {
       success: false,
-      error: lastError?.message || lastError || 'All API keys failed',
-      statusCode: lastError?.statusCode || 500,
+      error: failure.message,
+      statusCode: failure.statusCode,
     };
   }
 
@@ -85,7 +94,7 @@ export class TokenManager {
       return await provider.responses(request, '');
     }
 
-    let lastError: any = null;
+    let lastError: { message: string; statusCode: number } | null = null;
 
     for (const apiKey of apiKeys) {
       try {
@@ -100,31 +109,41 @@ export class TokenManager {
           return response;
         }
 
-        lastError = response.error;
+        const failure = normalizeFailure(
+          {
+            message: response.error || 'Provider request failed',
+            statusCode: response.statusCode,
+          },
+          'Provider request failed',
+          response.statusCode || 500
+        );
+        lastError = failure;
         console.log(
-          `[TokenManager] Responses failed with key ending in ...${apiKey.slice(-4)}: ${response.error}`
+          `[TokenManager] Responses failed with key ending in ...${apiKey.slice(-4)}: ${failure.message}`
         );
 
-        if (response.statusCode && !this.isRetryableStatusCode(response.statusCode)) {
+        if (!shouldRotateApiKey(failure)) {
           break;
         }
       } catch (error) {
-        lastError = error;
+        const failure = normalizeFailure(error, 'Provider request failed');
+        lastError = failure;
         console.error(
           `[TokenManager] Responses exception with key ending in ...${apiKey.slice(-4)}:`,
-          error
+          failure
         );
 
-        if (!isRetryableError(error)) {
+        if (!shouldRotateApiKey(failure)) {
           break;
         }
       }
     }
 
+    const failure = normalizeFailure(lastError, 'All API keys failed');
     return {
       success: false,
-      error: lastError?.message || lastError || 'All API keys failed',
-      statusCode: lastError?.statusCode || 500,
+      error: failure.message,
+      statusCode: failure.statusCode,
     };
   }
 
@@ -141,9 +160,5 @@ export class TokenManager {
     }
 
     return keys;
-  }
-
-  private isRetryableStatusCode(statusCode: number): boolean {
-    return statusCode === 429 || statusCode === 503 || statusCode === 502;
   }
 }
