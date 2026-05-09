@@ -31,7 +31,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Run ESLint
         run: pnpm run lint
@@ -57,8 +57,6 @@ jobs:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -71,16 +69,14 @@ jobs:
           node-version: 22
           cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Install dependencies (allow build scripts)
         run: pnpm install --frozen-lockfile
 
       - name: Replace ROUTES_CONFIG in wrangler.toml
         env:
           ROUTES_CONFIG: ${{ vars.ROUTES_CONFIG }}
         run: |
-          # Remove existing [vars] section and everything after it
-          sed -i '/^\[vars\]/,$d' wrangler.toml
-          # Add new [vars] section with GitHub Variable
+          sed -i '/^\[vars\]/,$d' wrangler.toml || true
           cat >> wrangler.toml << EOF
           [vars]
           ROUTES_CONFIG = '''${ROUTES_CONFIG}'''
