@@ -1,4 +1,5 @@
 name = "ai-worker-proxy"
+account_id = "8767da8afc4ffaf2e5a3093de30cb9e9"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
