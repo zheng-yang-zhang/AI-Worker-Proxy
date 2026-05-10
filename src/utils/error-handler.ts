@@ -158,9 +158,11 @@ export function isAuthError(error: unknown): boolean {
 }
 
 export function isQuotaError(error: unknown): boolean {
+  const statusCode = getErrorStatusCode(error);
   const errorCode = getErrorCode(error);
 
   return (
+    statusCode === 402 ||
     errorCode === 'insufficient_quota' ||
     messageIncludes(error, [
       'insufficient quota',
@@ -170,6 +172,13 @@ export function isQuotaError(error: unknown): boolean {
       'insufficient credits',
       'billing',
       'exhausted',
+      '已达到用量上限',
+      '用量上限',
+      '额度上限',
+      '额度不足',
+      '余额不足',
+      '配额',
+      '次数上限',
     ])
   );
 }

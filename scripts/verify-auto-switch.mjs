@@ -84,6 +84,17 @@ function startMockServer() {
       }
     }
 
+    if (url.pathname === '/quota-rotation/v1/chat/completions') {
+      if (authHeader === 'Bearer quota-key') {
+        return sendJson(res, 402, {
+          error: '已达到用量上限，将在今天凌晨2点33分（北京时间）恢复',
+        });
+      }
+      if (authHeader === 'Bearer good-key') {
+        return sendJson(res, 200, createChatResponse('quota-rotation-success'));
+      }
+    }
+
     if (url.pathname === '/provider-a/v1/chat/completions') {
       return sendJson(res, 503, createErrorResponse('provider a overloaded', 'provider_a_busy'));
     }
@@ -138,6 +149,14 @@ function startWorker() {
         apiKeys: ['TIMEOUT_KEY', 'GOOD_KEY'],
       },
     ],
+    'quota-rotate': [
+      {
+        provider: 'openai-compatible',
+        baseUrl: `http://127.0.0.1:${MOCK_PORT}/quota-rotation/v1`,
+        model: 'quota-model',
+        apiKeys: ['QUOTA_KEY', 'GOOD_KEY'],
+      },
+    ],
     'provider-fallback': [
       {
         provider: 'openai-compatible',
@@ -189,6 +208,8 @@ function startWorker() {
       `BAD_AUTH_KEY:bad-auth-key`,
       '--var',
       `TIMEOUT_KEY:timeout-key`,
+      '--var',
+      `QUOTA_KEY:quota-key`,
       '--var',
       `GOOD_KEY:good-key`,
       '--var',
@@ -303,6 +324,13 @@ async function main() {
       'chat path should rotate from 504 timeout failure to the next key'
     );
 
+    const quotaRotation = await callChat('quota-rotate');
+    assert.equal(
+      quotaRotation.choices?.[0]?.message?.content,
+      'quota-rotation-success',
+      'chat path should rotate from 402 quota failure to the next key'
+    );
+
     const providerFallback = await callChat('provider-fallback');
     assert.equal(
       providerFallback.choices?.[0]?.message?.content,
@@ -359,6 +387,14 @@ async function main() {
       'timeout key should have been attempted before rotation'
     );
     assert.ok(
+      getCount('/quota-rotation/v1/chat/completions', 'Bearer quota-key') >= 1,
+      'quota key should have been attempted before rotation'
+    );
+    assert.ok(
+      getCount('/quota-rotation/v1/chat/completions', 'Bearer good-key') >= 1,
+      'good key should be used after quota rotation'
+    );
+    assert.ok(
       getCount('/provider-a/v1/chat/completions', 'Bearer good-key') >= 1,
       'first provider should be attempted before fallback'
     );
@@ -375,10 +411,13 @@ async function main() {
       `- timeout rotation: timeout=${getCount('/timeout-rotation/v1/chat/completions', 'Bearer timeout-key')} good=${getCount('/timeout-rotation/v1/chat/completions', 'Bearer good-key')}`
     );
     console.log(
+      `- quota rotation: quota=${getCount('/quota-rotation/v1/chat/completions', 'Bearer quota-key')} good=${getCount('/quota-rotation/v1/chat/completions', 'Bearer good-key')}`
+    );
+    console.log(
       `- provider fallback: providerA=${getCount('/provider-a/v1/chat/completions', 'Bearer good-key')} providerB=${getCount('/provider-b/v1/chat/completions', 'Bearer good-key')}`
     );
 
-    console.log('\nVerification passed: auth rotation, timeout rotation, provider fallback, responses-path rotation, and structured error paths all succeeded.');
+    console.log('\nVerification passed: auth rotation, timeout rotation, quota rotation, provider fallback, responses-path rotation, and structured error paths all succeeded.');
   } finally {
     await stopProcess(worker);
 
