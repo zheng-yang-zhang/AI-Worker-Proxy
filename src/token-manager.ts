@@ -15,26 +15,13 @@ export class TokenManager {
     private env: Env
   ) {}
 
-  static readonly DEBUG_KEY_INDEX_HEADER = 'X-Proxy-Debug-Key-Index';
-
   /**
    * Try to execute request with token rotation
    * Will try all tokens in order until one succeeds
    */
-  async executeWithRotation(
-    request: OpenAIChatRequest,
-    options?: { keyIndex?: number }
-  ): Promise<ProviderResponse> {
+  async executeWithRotation(request: OpenAIChatRequest): Promise<ProviderResponse> {
     const provider = createProvider(this.config, this.env);
-    const apiKeys = this.getApiKeys(options?.keyIndex);
-
-    if (options?.keyIndex !== undefined && this.config.apiKeys.length > 0 && apiKeys.length === 0) {
-      return {
-        success: false,
-        error: `Debug key index ${options.keyIndex + 1} is out of range`,
-        statusCode: 400,
-      };
-    }
+    const apiKeys = this.getApiKeys();
 
     if (apiKeys.length === 0) {
       // For providers that don't need API keys (like Cloudflare AI)
@@ -95,23 +82,12 @@ export class TokenManager {
     };
   }
 
-  async executeResponsesWithRotation(
-    request: OpenAIResponsesRequest,
-    options?: { keyIndex?: number }
-  ): Promise<ProviderResponse> {
+  async executeResponsesWithRotation(request: OpenAIResponsesRequest): Promise<ProviderResponse> {
     const provider = createProvider(this.config, this.env);
-    const apiKeys = this.getApiKeys(options?.keyIndex);
-
-    if (options?.keyIndex !== undefined && this.config.apiKeys.length > 0 && apiKeys.length === 0) {
-      return {
-        success: false,
-        error: `Debug key index ${options.keyIndex + 1} is out of range`,
-        statusCode: 400,
-      };
-    }
+    const apiKeys = this.getApiKeys();
 
     if (!provider.responses) {
-      return this.executeWithRotation(responsesToChatRequest(request), options);
+      return this.executeWithRotation(responsesToChatRequest(request));
     }
 
     if (apiKeys.length === 0) {
@@ -171,7 +147,7 @@ export class TokenManager {
     };
   }
 
-  private getApiKeys(selectedKeyIndex?: number): string[] {
+  private getApiKeys(): string[] {
     const keys: string[] = [];
 
     for (const keyName of this.config.apiKeys) {
@@ -181,18 +157,6 @@ export class TokenManager {
       } else {
         console.warn(`[TokenManager] API key not found in env: ${keyName}`);
       }
-    }
-
-    if (selectedKeyIndex !== undefined) {
-      const selected = keys[selectedKeyIndex];
-      if (!selected) {
-        console.warn(
-          `[TokenManager] Debug key index ${selectedKeyIndex + 1} is out of range for ${this.config.provider}/${this.config.model}`
-        );
-        return [];
-      }
-
-      return [selected];
     }
 
     return keys;
