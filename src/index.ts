@@ -1,6 +1,7 @@
 import { Env, OpenAIChatRequest, OpenAIResponsesRequest } from './types';
 import { Router } from './router';
 import { ProxyError, createErrorResponse } from './utils/error-handler';
+import { TokenManager } from './token-manager';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -71,6 +72,7 @@ export default {
 async function handleChatCompletion(request: Request, env: Env): Promise<Response> {
   const body = await request.json();
   const chatRequest = body as OpenAIChatRequest;
+  const debugKeyIndex = parseDebugKeyIndex(request);
 
   if (!chatRequest.messages || !Array.isArray(chatRequest.messages)) {
     throw new ProxyError('Invalid request: messages array is required', 400);
@@ -82,7 +84,9 @@ async function handleChatCompletion(request: Request, env: Env): Promise<Respons
   console.log(`[Worker] model=${chatRequest.model} stream=${chatRequest.stream || false}`);
 
   const router = new Router(env);
-  const response = await router.executeWithFallback(chatRequest);
+  const response = await router.executeWithFallbackOptions(chatRequest, {
+    keyIndex: debugKeyIndex,
+  });
 
   if (!response.success) {
     throw new ProxyError(response.error || 'All providers failed', response.statusCode || 500);
@@ -105,6 +109,7 @@ async function handleChatCompletion(request: Request, env: Env): Promise<Respons
 async function handleResponses(request: Request, env: Env): Promise<Response> {
   const body = await request.json();
   const responsesRequest = body as OpenAIResponsesRequest;
+  const debugKeyIndex = parseDebugKeyIndex(request);
 
   if (!responsesRequest.model) {
     throw new ProxyError('Invalid request: model is required', 400);
@@ -115,7 +120,9 @@ async function handleResponses(request: Request, env: Env): Promise<Response> {
   );
 
   const router = new Router(env);
-  const response = await router.executeResponsesWithFallback(responsesRequest);
+  const response = await router.executeResponsesWithFallbackOptions(responsesRequest, {
+    keyIndex: debugKeyIndex,
+  });
 
   if (!response.success) {
     throw new ProxyError(response.error || 'All providers failed', response.statusCode || 500);
@@ -148,4 +155,21 @@ function verifyAuth(request: Request, env: Env): boolean {
 
   const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
   return token === env.PROXY_AUTH_TOKEN;
+}
+
+function parseDebugKeyIndex(request: Request): number | undefined {
+  const rawValue = request.headers.get(TokenManager.DEBUG_KEY_INDEX_HEADER);
+  if (!rawValue) {
+    return undefined;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new ProxyError(
+      `${TokenManager.DEBUG_KEY_INDEX_HEADER} must be a positive integer`,
+      400
+    );
+  }
+
+  return parsed - 1;
 }

@@ -58,6 +58,13 @@ export class Router {
    * Will try providers in order until one succeeds
    */
   async executeWithFallback(request: OpenAIChatRequest): Promise<ProviderResponse> {
+    return this.executeWithFallbackOptions(request, {});
+  }
+
+  async executeWithFallbackOptions(
+    request: OpenAIChatRequest,
+    options: { keyIndex?: number }
+  ): Promise<ProviderResponse> {
     const model = request.model;
     if (!model) {
       throw new ProxyError('Model name is required', 400);
@@ -78,7 +85,7 @@ export class Router {
 
       try {
         const manager = new TokenManager(config, this.env);
-        const response = await manager.executeWithRotation(request);
+        const response = await manager.executeWithRotation(request, options);
 
         if (response.success) {
           console.log(`[Router] Success with provider: ${config.provider}/${config.model}`);
@@ -114,6 +121,13 @@ export class Router {
   }
 
   async executeResponsesWithFallback(request: OpenAIResponsesRequest): Promise<ProviderResponse> {
+    return this.executeResponsesWithFallbackOptions(request, {});
+  }
+
+  async executeResponsesWithFallbackOptions(
+    request: OpenAIResponsesRequest,
+    options: { keyIndex?: number }
+  ): Promise<ProviderResponse> {
     const model = request.model;
     if (!model) {
       throw new ProxyError('Model name is required', 400);
@@ -135,7 +149,7 @@ export class Router {
 
       try {
         const manager = new TokenManager(config, this.env);
-        const response = await manager.executeResponsesWithRotation(request);
+        const response = await manager.executeResponsesWithRotation(request, options);
 
         if (response.success) {
           console.log(

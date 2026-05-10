@@ -7,6 +7,7 @@ const MOCK_PORT = 19080;
 const WORKER_PORT = 18787;
 const WORKER_URL = `http://127.0.0.1:${WORKER_PORT}`;
 const PROXY_AUTH_TOKEN = 'proxy-test-token';
+const DEBUG_KEY_INDEX_HEADER = 'X-Proxy-Debug-Key-Index';
 
 const requestCounts = new Map();
 
@@ -278,12 +279,13 @@ async function callResponses(model) {
   return json;
 }
 
-async function callRaw(pathname, body) {
+async function callRaw(pathname, body, extraHeaders = {}) {
   const response = await fetch(`${WORKER_URL}${pathname}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${PROXY_AUTH_TOKEN}`,
+      ...extraHeaders,
     },
     body: JSON.stringify(body),
   });
@@ -343,6 +345,40 @@ async function main() {
       responsesRotation.choices?.[0]?.message?.content,
       'auth-rotation-success',
       'responses path should reuse the same key rotation logic'
+    );
+
+    const forcedSecondKey = await callRaw(
+      '/v1/chat/completions',
+      {
+        model: 'auth-rotate',
+        messages: [{ role: 'user', content: 'force second key' }],
+      },
+      {
+        [DEBUG_KEY_INDEX_HEADER]: '2',
+      }
+    );
+    assert.equal(forcedSecondKey.status, 200, 'forcing the second key should succeed');
+    assert.equal(
+      forcedSecondKey.json?.choices?.[0]?.message?.content,
+      'auth-rotation-success',
+      'debug key selection should use the requested key'
+    );
+
+    const outOfRangeKey = await callRaw(
+      '/v1/chat/completions',
+      {
+        model: 'auth-rotate',
+        messages: [{ role: 'user', content: 'force out of range key' }],
+      },
+      {
+        [DEBUG_KEY_INDEX_HEADER]: '3',
+      }
+    );
+    assert.equal(outOfRangeKey.status, 400, 'out-of-range debug key index should return 400');
+    assert.match(
+      outOfRangeKey.json?.error?.message || '',
+      /out of range/i,
+      'out-of-range debug key index should return a clear error'
     );
 
     const invalidChatRequest = await callRaw('/v1/chat/completions', {
